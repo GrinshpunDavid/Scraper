@@ -15,11 +15,19 @@ This Python script is a web scraper designed for testing session management and 
 
 ## Requirements
 
-- Python 3.7+.
+- Python 3.7+
 - The following Python libraries:
   - `requests`
   - `tenacity`
   - `beautifulsoup4`
   - `bs4`
   - `logging`
+  - `python-dotenv`
 
+## Installation
+
+1. Clone the repository or download the script.
+
+2. Install required dependencies:
+   ```bash
+   pip install -r requirements.txt
