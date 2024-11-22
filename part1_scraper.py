@@ -6,6 +6,7 @@ from tenacity import retry, wait_random, stop_after_attempt, before_sleep_log, R
 import logging
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from requests import Session
 import os
 
 # Load environment variables from .env file
@@ -27,20 +28,19 @@ PROXIES = os.getenv("PROXIES").split(',')
 
 
 # Login to the site and manage the session
-def login(url: str, username: str, password: str) -> requests.Session | None:
-    session = requests.Session()
+def login(session: requests.Session, url: str, username: str, password: str) -> bool:
     try:
         response = session.get(url, auth=(username, password))
         if response.status_code == 200:
             logging.info("Login successful")
             logging.info(f"Cookies retrieved: {session.cookies.get_dict()}")
-            return session
+            return True
         else:
             logging.error(f"Login failed with status code {response.status_code}")
-            return None
+            return False
     except requests.exceptions.RequestException as e:
         logging.error(f"Login request failed: {e}")
-        return None
+        return False
 
 
 # Retry logic using tenacity
@@ -80,9 +80,7 @@ def extract_data_from_html(page_html: str) -> list[dict]:
         title = book.find('h3').find('a')['title'] if book.find('h3') else "N/A"
         price = book.find('p', class_='price_color').text if book.find('p', class_='price_color') else "N/A"
         availability = book.find('p', class_='instock availability').text.strip() if book.find('p', class_='instock availability') else "N/A"
-
-        # Clean the price by removing unwanted characters
-        price = price.replace("\u00c2\u00a3", "").strip()
+        price = price.replace("\u00c2\u00a3", "").strip()  # Clean the price by removing unwanted characters
 
         books.append({
             'name': title,
@@ -93,13 +91,33 @@ def extract_data_from_html(page_html: str) -> list[dict]:
     return books
 
 
+def get_max_page(session: requests.Session, base_url: str) -> int:
+    """
+    Fetch the first page and parse it to find the maximum page number.
+    """
+    try:
+        url = f"{base_url}/catalogue/page-1.html"
+        logging.info("Determining the total number of pages...")
+        soup = BeautifulSoup(fetch_page(session, url).text, 'html.parser')
+        last_page = soup.find("ul", class_="pager").find("li", class_="current").text.strip().split()[-1]
+        logging.info(f"Max page number determined: {last_page}")
+        return int(last_page)
+    except Exception as e:
+        logging.warning(f"Pagination not found or error occurred ({e}). Defaulting to 1 page.")
+        return 1
+
+
 # Function to scrape paginated data
-def scrape_paginated_data(session: requests.Session, base_url: str, max_pages: int = 5) -> list[dict]:
+def scrape_paginated_data(session: requests.Session, base_url: str, max_pages: int = 0) -> list[dict]:
     page = 1
     data = []
 
     # https://httpbin.org/ has no data to scrap, so I am using books.toscrape.com
     base_url = "https://books.toscrape.com"
+
+    # Determine max_pages dynamically if not provided
+    if max_pages == 0:
+        max_pages = get_max_page(session, base_url)
 
     while page <= max_pages:  # Stop scraping after max_pages
         url = f"{base_url}/catalogue/page-{page}.html"
@@ -127,20 +145,20 @@ def scrape_paginated_data(session: requests.Session, base_url: str, max_pages: i
 
 # Main function to execute the scraper
 def main() -> None:
-    # 1. Login to the website
-    session = login(LOGIN_URL, USERNAME, PASSWORD)
-    if not session:
-        logging.error("Login failed. Exiting...")
-        return
+    with Session() as session:
+        # 1. Login to the website
+        if not login(session, LOGIN_URL, USERNAME, PASSWORD):
+            logging.error("Login failed. Exiting...")
+            return
 
-    # 2. Scrape paginated data
-    logging.info("Starting to scrape paginated data:")
-    data = scrape_paginated_data(session, BASE_URL)
+        # 2. Scrape paginated data
+        logging.info("Starting to scrape paginated data:")
+        data = scrape_paginated_data(session, BASE_URL)
 
-    # 3. Save data to a JSON file
-    with open('scraped_data.json', 'w') as f:
-        json.dump(data, f, indent=4)
-    logging.info("Data saved successfully to 'scraped_data.json'.")
+        # 3. Save data to a JSON file
+        with open('scraped_data.json', 'w') as f:
+            json.dump(data, f, indent=4)
+        logging.info("Data saved successfully to 'scraped_data.json'.")
 
     logging.info("Scraping completed.")
 
