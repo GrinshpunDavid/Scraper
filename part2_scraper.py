@@ -1,11 +1,9 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
+import undetected_chromedriver as uc
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 from dotenv import load_dotenv
 import logging
 import random
@@ -23,12 +21,12 @@ logging.basicConfig(filename='selenium_scraper.log', level=logging.INFO, format=
 USERNAME = os.getenv("USER")
 PASSWORD = os.getenv("PASSWORD")
 BASE_URL = os.getenv("BASE_URL")
-LOGIN_URL = os.getenv("LOGIN_URL")  # JavaScript-heavy login URL
-CHROME_DRIVER_PATH = os.getenv("CHROME_DRIVER_PATH", r"C:\WebDrivers\chromedriver.exe")
+CHROME_DRIVER_PATH = os.getenv("CHROME_DRIVER_PATH")
 
 
-# Initialize ChromeDriver with options
+# Initialize ChromeDriver with stealth options
 def setup_driver():
+    # Set up Chrome options
     options = Options()
     options.add_argument("--headless")  # Run in headless mode (no GUI)
     options.add_argument("--disable-gpu")
@@ -36,8 +34,19 @@ def setup_driver():
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--incognito")
-    driver = webdriver.Chrome(options=options)
-    return driver
+    options.add_argument("--disable-blink-features=AutomationControlled")  # Disable automation-related flags
+    options.add_argument("--disable-extensions")  # Disable extensions that might reveal the bot
+    options.add_argument("--disable-notifications")
+    options.add_argument("--disable-features=EnableImageLoading")
+
+    # Initialize the WebDriver with undetected_chromedriver
+    try:
+        driver = uc.Chrome(options=options)
+        logging.info("WebDriver initialized successfully.")
+        return driver
+    except WebDriverException as e:
+        logging.error(f"Error initializing WebDriver: {e}")
+        raise
 
 
 # Login to the site and manage the session
@@ -46,12 +55,16 @@ def login(driver, url, username, password):
         logging.info(f"Opening login page: {url}")
         # Format the URL for Basic Authentication
         auth_url = f"https://{username}:{password}@{url.split('://')[1]}"
-        logging.info(auth_url)
+        logging.info(f"Accessing login URL: {auth_url}")
         driver.get(auth_url)
 
-        # Check if the page loaded correctly
+        # Wait for page to load
+        WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
         logging.info("Login successful or page loaded.")
         return True
+    except TimeoutException:
+        logging.error(f"Login page timed out. URL: {url}")
+        return False
     except Exception as e:
         logging.error(f"Login failed: {e}")
         return False
@@ -61,6 +74,7 @@ def login(driver, url, username, password):
 def scrape_data(driver, base_url, max_pages=5):
     data = []
     page = 1
+    consecutive_failures = 0  # Counter for consecutive page load failures
 
     while True:
         url = f"{base_url}/catalogue/page-{page}.html"
@@ -69,7 +83,10 @@ def scrape_data(driver, base_url, max_pages=5):
         try:
             # Wait for dynamic content to load
             WebDriverWait(driver, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "product_pod")))
-            logging.info(f"{url}: page {page} loaded successfully.")
+            logging.info(f"{url} loaded successfully.")
+
+            # Reset consecutive failures on successful page load
+            consecutive_failures = 0
 
             # Extract book data
             book_elements = driver.find_elements(By.CLASS_NAME, "product_pod")
@@ -102,17 +119,42 @@ def scrape_data(driver, base_url, max_pages=5):
             time.sleep(random.randint(1, 3))  # Random sleep to mimic human-like behavior
 
         except TimeoutException:
-            logging.warning(f"Timeout occurred while loading page {page}. Ending scraping.")
+            logging.warning(f"Timeout occurred while loading page {page}.")
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                logging.warning("Failed to load 3 consecutive pages. Ending scraping.")
+                break
+        except Exception as e:
+            logging.error(f"Error while scraping page {page}: {e}")
             break
 
     logging.info(f"Scraping complete. Total books scraped: {len(data)}")
     return data
 
 
+# Improved WebDriver cleanup handling
+def cleanup_driver(driver):
+    try:
+        if driver and driver.window_handles:
+            logging.info(f"Closing {len(driver.window_handles)} window(s)...")
+            time.sleep(1.5)
+            driver.quit()
+            logging.info("WebDriver session closed.")
+        else:
+            logging.warning("No open windows or driver already closed.")
+    except (OSError, TimeoutException) as e:
+        logging.error(f"Error during cleanup: {e}")
+    except Exception as e:
+        logging.error("Unexpected error during cleanup", exc_info=True)
+
+
 # Main function to execute the scraper
 def main():
-    driver = setup_driver()
+    driver = None
     try:
+        # Initialize WebDriver
+        driver = setup_driver()
+
         # Login
         if not login(driver, BASE_URL, USERNAME, PASSWORD):
             logging.error("Login failed. Exiting...")
@@ -128,9 +170,12 @@ def main():
             json.dump(data, f, indent=4)
         logging.info("Data saved successfully to 'scraped_data.json'.")
 
+    except Exception as e:
+        logging.error(f"Unexpected error during scraping process: {e}", exc_info=True)
+
     finally:
-        driver.quit()
-        logging.info("WebDriver session closed.")
+        if driver:
+            cleanup_driver(driver)
 
 
 if __name__ == "__main__":
