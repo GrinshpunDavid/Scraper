@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from requests import Session
 import os
+from typing import List, Dict, Optional
 
 # Load environment variables from .env file
 load_dotenv()
@@ -16,16 +17,15 @@ load_dotenv()
 logging.basicConfig(filename='scraper.log', level=logging.INFO, format='%(asctime)s - %(message)s')
 
 # Sample credentials and URLs from environment variables
-USERNAME = os.getenv("USER")
-PASSWORD = os.getenv("PASSWORD")
-DEFAULT_TIMEOUT = (5, 15)
-BASE_URL = os.getenv("BASE_URL")
-LOGIN_URL = os.getenv("LOGIN_URL")  # HTTP Basic Auth URL (for testing)
+USERNAME: str = os.getenv("USER", "")
+PASSWORD: str = os.getenv("PASSWORD", "")
+DEFAULT_TIMEOUT: tuple[int, int] = (5, 15)
+BASE_URL: str = os.getenv("BASE_URL", "")
+LOGIN_URL: str = os.getenv("LOGIN_URL", "")  # HTTP Basic Auth URL (for testing)
 
 # Proxy and User-Agent List for rotation from environment variables
-USER_AGENTS = os.getenv("USER_AGENTS").split(';; ')
-PROXIES = os.getenv("PROXIES").split(',')
-
+USER_AGENTS: List[str] = os.getenv("USER_AGENTS", "").split(';; ')
+PROXIES: List[str] = os.getenv("PROXIES", "").split(',')
 
 # Login to the site and manage the session
 def login(session: requests.Session, url: str, username: str, password: str) -> bool:
@@ -46,9 +46,9 @@ def login(session: requests.Session, url: str, username: str, password: str) -> 
 # Retry logic using tenacity
 @retry(wait=wait_random(min=3, max=10), stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logging.getLogger(), logging.INFO))
-def fetch_page(session: requests.Session, url: str, timeout: tuple = DEFAULT_TIMEOUT) -> requests.Response:
-    head = {'User-Agent': random.choice(USER_AGENTS)}
-    prox = {'http': random.choice(PROXIES)}
+def fetch_page(session: requests.Session, url: str, timeout: tuple[int, int] = DEFAULT_TIMEOUT) -> requests.Response:
+    head: Dict[str, str] = {'User-Agent': random.choice(USER_AGENTS)}
+    prox: Dict[str, str] = {'http': random.choice(PROXIES)}
 
     logging.info(f"Proxy-Agent: {prox}, {head}")
     try:
@@ -64,9 +64,9 @@ def fetch_page(session: requests.Session, url: str, timeout: tuple = DEFAULT_TIM
 
 
 # Function to parse HTML and extract structured data (name, price, availability for books)
-def extract_data_from_html(page_html: str) -> list[dict]:
+def extract_data_from_html(page_html: str) -> List[Dict[str, str]]:
     soup = BeautifulSoup(page_html, 'html.parser')
-    books = []
+    books: List[Dict[str, str]] = []
 
     # Find all book containers (each book is inside an article with class 'product_pod')
     book_elements = soup.find_all('article', class_='product_pod')
@@ -108,9 +108,9 @@ def get_max_page(session: requests.Session, base_url: str) -> int:
 
 
 # Function to scrape paginated data
-def scrape_paginated_data(session: requests.Session, base_url: str, max_pages: int = 0) -> list[dict]:
-    page = 1
-    data = []
+def scrape_paginated_data(session: requests.Session, base_url: str, max_pages: int = 0) -> List[Dict[str, str]]:
+    page: int = 1
+    data: List[Dict[str, str]] = []
 
     # https://httpbin.org/ has no data to scrap, so I am using books.toscrape.com
     base_url = "https://books.toscrape.com"
