@@ -1,0 +1,13 @@
+2024-11-23 13:30:50,811 - Opening login page: https://books.toscrape.com/
+2024-11-23 13:30:50,813 - https://user1:password@books.toscrape.com/
+2024-11-23 13:30:52,691 - Login successful or page loaded.
+2024-11-23 13:30:52,692 - Logged in successfully.
+2024-11-23 13:30:53,790 - Page 1 loaded successfully.
+2024-11-23 13:30:56,751 - Page 2 loaded successfully.
+2024-11-23 13:31:01,616 - Page 3 loaded successfully.
+2024-11-23 13:31:06,517 - Page 4 loaded successfully.
+2024-11-23 13:31:10,567 - Page 5 loaded successfully.
+2024-11-23 13:31:11,609 - Reached the maximum number of pages.
+2024-11-23 13:31:11,609 - Scraping complete. Total books scraped: 100
+2024-11-23 13:31:11,610 - Data saved successfully to 'scraped_data.json'.
+2024-11-23 13:31:13,765 - WebDriver session closed.
