@@ -6,9 +6,9 @@ from tenacity import retry, wait_random, stop_after_attempt, before_sleep_log, R
 import logging
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
-from requests import Session
 import os
 from typing import List, Dict, Optional
+from session_management import SessionManagement
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,27 +27,13 @@ LOGIN_URL: str = os.getenv("LOGIN_URL", "")  # HTTP Basic Auth URL (for testing)
 USER_AGENTS: List[str] = os.getenv("USER_AGENTS", "").split(';; ')
 PROXIES: List[str] = os.getenv("PROXIES", "").split(',')
 
-# Login to the site and manage the session
-def login(session: requests.Session, url: str, username: str, password: str) -> bool:
-    try:
-        response = session.get(url, auth=(username, password))
-        if response.status_code == 200:
-            logging.info("Login successful")
-            logging.info(f"Cookies retrieved: {session.cookies.get_dict()}")
-            return True
-        else:
-            logging.error(f"Login failed with status code {response.status_code}")
-            return False
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Login request failed: {e}")
-        return False
-
 
 # Retry logic using tenacity
 @retry(wait=wait_random(min=3, max=10), stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logging.getLogger(), logging.INFO))
 def fetch_page(session: requests.Session, url: str, timeout: tuple[int, int] = DEFAULT_TIMEOUT) -> requests.Response:
-    head: Dict[str, str] = {'User-Agent': random.choice(USER_AGENTS)}
+    head: Dict[str, str] = {'User-Agent': random.choice(USER_AGENTS),
+                            "Accept": "application/json, text/plain, */*"}
     prox: Dict[str, str] = {'http': random.choice(PROXIES)}
 
     logging.info(f"Proxy-Agent: {prox}, {head}")
@@ -145,20 +131,24 @@ def scrape_paginated_data(session: requests.Session, base_url: str, max_pages: i
 
 # Main function to execute the scraper
 def main() -> None:
-    with Session() as session:
-        # 1. Login to the website
-        if not login(session, LOGIN_URL, USERNAME, PASSWORD):
-            logging.error("Login failed. Exiting...")
-            return
 
-        # 2. Scrape paginated data
-        logging.info("Starting to scrape paginated data:")
-        data = scrape_paginated_data(session, BASE_URL)
+    # Initialize the session management
+    session_manager = SessionManagement(username=USERNAME, password=PASSWORD, login_url=LOGIN_URL)
+    session = session_manager.get_session()
 
-        # 3. Save data to a JSON file
-        with open('scraped_data.json', 'w') as f:
-            json.dump(data, f, indent=4)
-        logging.info("Data saved successfully to 'scraped_data.json'.")
+    # Check if login was successful
+    if not session_manager.is_login:
+        logging.error("Login failed. Exiting...")
+        return
+
+    # 2. Scrape paginated data
+    logging.info("Starting to scrape paginated data:")
+    data = scrape_paginated_data(session, BASE_URL)
+
+    # 3. Save data to a JSON file
+    with open('scraped_data.json', 'w') as f:
+        json.dump(data, f, indent=4)
+    logging.info("Data saved successfully to 'scraped_data.json'.")
 
     logging.info("Scraping completed.")
 
