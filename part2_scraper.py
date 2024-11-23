@@ -10,6 +10,7 @@ import random
 import os
 import json
 import time
+from typing import List, Dict, Optional
 
 # Load environment variables from .env file
 load_dotenv()
@@ -25,7 +26,8 @@ CHROME_DRIVER_PATH = os.getenv("CHROME_DRIVER_PATH")
 
 
 # Initialize ChromeDriver with stealth options
-def setup_driver():
+def setup_driver() -> uc.Chrome:
+    """Sets up and returns the Chrome WebDriver."""
     # Set up Chrome options
     options = Options()
     options.add_argument("--headless")  # Run in headless mode (no GUI)
@@ -50,7 +52,8 @@ def setup_driver():
 
 
 # Login to the site and manage the session
-def login(driver, url, username, password):
+def login(driver: uc.Chrome, url: str, username: str, password: str) -> bool:
+    """Logs into the website and returns whether the login was successful."""
     try:
         logging.info(f"Opening login page: {url}")
         # Format the URL for Basic Authentication
@@ -71,8 +74,9 @@ def login(driver, url, username, password):
 
 
 # Function to scrape dynamically loaded data
-def scrape_data(driver, base_url, max_pages=5):
-    data = []
+def scrape_data(driver: uc.Chrome, base_url: str, max_pages: int = 5) -> List[Dict[str, str]]:
+    """Scrapes data from a paginated catalogue and returns a list of books' details."""
+    data: List[Dict[str, str]] = []
     page = 1
     consecutive_failures = 0  # Counter for consecutive page load failures
 
@@ -133,7 +137,8 @@ def scrape_data(driver, base_url, max_pages=5):
 
 
 # Improved WebDriver cleanup handling
-def cleanup_driver(driver):
+def cleanup_driver(driver: Optional[uc.Chrome]) -> None:
+    """Cleans up the WebDriver instance by closing open windows."""
     try:
         if driver and driver.window_handles:
             logging.info(f"Closing {len(driver.window_handles)} window(s)...")
@@ -149,8 +154,8 @@ def cleanup_driver(driver):
 
 
 # Main function to execute the scraper
-def main():
-    driver = None
+def main() -> None:
+    driver: Optional[uc.Chrome] = None
     try:
         # Initialize WebDriver
         driver = setup_driver()
