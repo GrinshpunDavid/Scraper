@@ -1,16 +1,18 @@
-2024-11-23 17:17:02,181 - patching driver executable C:\Users\grins\appdata\roaming\undetected_chromedriver\undetected_chromedriver.exe
-2024-11-23 17:17:03,074 - WebDriver initialized successfully.
-2024-11-23 17:17:03,075 - Opening login page: https://books.toscrape.com/
-2024-11-23 17:17:03,075 - Accessing login URL: https://user1:password@books.toscrape.com/
-2024-11-23 17:17:04,962 - Login successful or page loaded.
-2024-11-23 17:17:04,962 - Logged in successfully.
-2024-11-23 17:17:06,501 - https://books.toscrape.com//catalogue/page-1.html loaded successfully.
-2024-11-23 17:17:11,553 - https://books.toscrape.com//catalogue/page-2.html loaded successfully.
-2024-11-23 17:17:16,867 - https://books.toscrape.com//catalogue/page-3.html loaded successfully.
-2024-11-23 17:17:21,513 - https://books.toscrape.com//catalogue/page-4.html loaded successfully.
-2024-11-23 17:17:26,718 - https://books.toscrape.com//catalogue/page-5.html loaded successfully.
-2024-11-23 17:17:28,702 - Reached the maximum number of pages.
-2024-11-23 17:17:28,703 - Scraping complete. Total books scraped: 100
-2024-11-23 17:17:28,707 - Data saved successfully to 'scraped_data.json'.
-2024-11-23 17:17:28,712 - Closing 1 window(s)...
-2024-11-23 17:17:30,452 - WebDriver session closed.
+2024-11-23 19:23:19,712 - patching driver executable C:\Users\grins\appdata\roaming\undetected_chromedriver\undetected_chromedriver.exe
+2024-11-23 19:23:20,745 - WebDriver initialized successfully.
+2024-11-23 19:23:20,745 - Opening login page: https://books.toscrape.com/
+2024-11-23 19:23:20,745 - Accessing login URL: https://user1:password@books.toscrape.com/
+2024-11-23 19:23:29,052 - Login successful or page loaded.
+2024-11-23 19:23:29,053 - Logged in successfully.
+2024-11-23 19:23:47,492 - Timeout occurred while loading page 1.
+2024-11-23 19:24:05,579 - Timeout occurred while loading page 1.
+2024-11-23 19:24:11,471 - https://books.toscrape.com//catalogue/page-1.html loaded successfully.
+2024-11-23 19:24:15,684 - https://books.toscrape.com//catalogue/page-2.html loaded successfully.
+2024-11-23 19:24:20,367 - https://books.toscrape.com//catalogue/page-3.html loaded successfully.
+2024-11-23 19:24:26,054 - https://books.toscrape.com//catalogue/page-4.html loaded successfully.
+2024-11-23 19:24:30,650 - https://books.toscrape.com//catalogue/page-5.html loaded successfully.
+2024-11-23 19:24:31,888 - Reached the maximum number of pages.
+2024-11-23 19:24:31,888 - Scraping complete. Total books scraped: 100
+2024-11-23 19:24:31,890 - Data saved successfully to 'scraped_data.json'.
+2024-11-23 19:24:31,893 - Closing 1 window(s)...
+2024-11-23 19:24:33,610 - WebDriver session closed.

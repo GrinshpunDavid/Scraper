@@ -24,10 +24,14 @@ PASSWORD = os.getenv("PASSWORD")
 BASE_URL = os.getenv("BASE_URL")
 CHROME_DRIVER_PATH = os.getenv("CHROME_DRIVER_PATH")
 
+# Proxy and User-Agent settings
+USER_AGENTS: List[str] = os.getenv("USER_AGENTS", "").split(';; ')
+PROXIES: List[str] = os.getenv("PROXIES", "").split(',')
+
 
 # Initialize ChromeDriver with stealth options
 def setup_driver() -> uc.Chrome:
-    """Sets up and returns the Chrome WebDriver."""
+    """Sets up and returns the Chrome WebDriver with proxy and user-agent."""
     # Set up Chrome options
     options = Options()
     options.add_argument("--headless")  # Run in headless mode (no GUI)
@@ -40,6 +44,14 @@ def setup_driver() -> uc.Chrome:
     options.add_argument("--disable-extensions")  # Disable extensions that might reveal the bot
     options.add_argument("--disable-notifications")
     options.add_argument("--disable-features=EnableImageLoading")
+
+    # Select random proxy and user-agent
+    random_proxy = random.choice(PROXIES)
+    random_user_agent = random.choice(USER_AGENTS)
+
+    # Add selected proxy and user-agent to options
+    options.add_argument(f'--proxy-server={random_proxy}')
+    options.add_argument(f'--user-agent={random_user_agent}')
 
     # Initialize the WebDriver with undetected_chromedriver
     try:
@@ -63,6 +75,7 @@ def login(driver: uc.Chrome, url: str, username: str, password: str) -> bool:
 
         # Wait for page to load
         WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+
         logging.info("Login successful or page loaded.")
         return True
     except TimeoutException:
