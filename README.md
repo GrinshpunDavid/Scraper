@@ -49,9 +49,9 @@ Ensure you have the following installed:
 ## Usage
 
 ### Running the Scraper
-1. Execute the main script:
+1. Execute the part1_scraper script:
    ```bash
-   python main.py
+   python part1_scraper.py
    ```
 2. The scraper will:
    - Authenticate using the provided credentials.
