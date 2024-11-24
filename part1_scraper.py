@@ -10,63 +10,63 @@ import os
 from typing import List, Dict, Optional
 from session_management import SessionManagement
 
-# Load environment variables from .env file
+# Load environment variables
 load_dotenv()
 
-# Setup Logging
-logging.basicConfig(filename='scraper.log', level=logging.INFO, format='%(asctime)s - %(message)s')
-
-# Sample credentials and URLs from environment variables
-USERNAME: str = os.getenv("USER", "")
-PASSWORD: str = os.getenv("PASSWORD", "")
+# Constants
 DEFAULT_TIMEOUT: tuple[int, int] = (5, 15)
-BASE_URL: str = os.getenv("BASE_URL", "")
-LOGIN_URL: str = os.getenv("LOGIN_URL", "")  # HTTP Basic Auth URL (for testing)
-
-# Proxy and User-Agent List for rotation from environment variables
 USER_AGENTS: List[str] = os.getenv("USER_AGENTS", "").split(';; ')
 PROXIES: List[str] = os.getenv("PROXIES", "").split(',')
+BASE_URL: str = os.getenv("BASE_URL")  # https://books.toscrape.com for scraping
+LOGIN_URL: str = os.getenv("LOGIN_URL", "")  # https://httpbin.org/ for basic-auth
+USERNAME: str = os.getenv("USER", "")
+PASSWORD: str = os.getenv("PASSWORD", "")
 
+# Logging Configuration
+logging.basicConfig(
+    filename='scraper.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 
-# Retry logic using tenacity
-@retry(wait=wait_random(min=3, max=10), stop=stop_after_attempt(5),
-       before_sleep=before_sleep_log(logging.getLogger(), logging.INFO))
+@retry(
+    wait=wait_random(min=3, max=10),
+    stop=stop_after_attempt(5),
+    before_sleep=before_sleep_log(logging.getLogger(), logging.INFO)
+)
 def fetch_page(session: requests.Session, url: str, timeout: tuple[int, int] = DEFAULT_TIMEOUT) -> requests.Response:
-    head: Dict[str, str] = {'User-Agent': random.choice(USER_AGENTS),
-                            "Accept": "application/json, text/plain, */*"}
-    prox: Dict[str, str] = {'http': random.choice(PROXIES)}
+    """
+    Fetch a page with retry logic, using a random proxy and User-Agent for rotation.
+    """
+    headers = {
+        'User-Agent': random.choice(USER_AGENTS),
+        "Accept": "application/json, text/plain, */*"
+    }
+    proxies = {'http': random.choice(PROXIES)}
 
-    logging.info(f"Proxy-Agent: {prox}, {head}")
-    try:
-        response = session.get(url, headers=head, proxies=prox, timeout=timeout)
-        response.raise_for_status()
-    except requests.exceptions.Timeout:
-        logging.warning(f"Timeout error for {url}. Retrying...")
-        raise
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Error fetching {url}: {e}")
-        raise
+    logging.info(f"Fetching URL: {url} with Proxy: {proxies} and Headers: {headers}")
+    response = session.get(url, headers=headers, proxies=proxies, timeout=timeout)
+    response.raise_for_status()  # Raise an exception for HTTP errors
     return response
 
 
-# Function to parse HTML and extract structured data (name, price, availability for books)
-def extract_data_from_html(page_html: str) -> List[Dict[str, str]]:
-    soup = BeautifulSoup(page_html, 'html.parser')
-    books: List[Dict[str, str]] = []
+def extract_data_from_html(html_content: str) -> List[Dict[str, str]]:
+    """
+    Parse the HTML content and extract book data (title, price, availability).
+    """
+    soup = BeautifulSoup(html_content, 'html.parser')
+    books = []
 
-    # Find all book containers (each book is inside an article with class 'product_pod')
     book_elements = soup.find_all('article', class_='product_pod')
-
-    # Data validation
-    if not soup or not book_elements:
-        logging.warning("No valid content found on the page. Skipping extraction.")
+    if not book_elements:
+        logging.warning("No valid book elements found on the page.")
         return books
 
     for book in book_elements:
         title = book.find('h3').find('a')['title'] if book.find('h3') else "N/A"
         price = book.find('p', class_='price_color').text if book.find('p', class_='price_color') else "N/A"
         availability = book.find('p', class_='instock availability').text.strip() if book.find('p', class_='instock availability') else "N/A"
-        price = price.replace("\u00c2\u00a3", "").strip()  # Clean the price by removing unwanted characters
+        price = price.replace("£", "").replace("Â", "").strip()  # Remove currency symbol for normalization
 
         books.append({
             'name': title,
@@ -79,80 +79,84 @@ def extract_data_from_html(page_html: str) -> List[Dict[str, str]]:
 
 def get_max_page(session: requests.Session, base_url: str) -> int:
     """
-    Fetch the first page and parse it to find the maximum page number.
+    Determine the total number of pages from the first page of the catalog.
     """
     try:
         url = f"{base_url}/catalogue/page-1.html"
-        logging.info("Determining the total number of pages...")
-        soup = BeautifulSoup(fetch_page(session, url).text, 'html.parser')
-        last_page = soup.find("ul", class_="pager").find("li", class_="current").text.strip().split()[-1]
-        logging.info(f"Max page number determined: {last_page}")
-        return int(last_page)
+        logging.info("Fetching the first page to determine pagination...")
+        response = fetch_page(session, url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        pagination = soup.find("ul", class_="pager")
+        if pagination:
+            last_page = pagination.find("li", class_="current").text.strip().split()[-1]
+            return int(last_page)
+        else:
+            logging.info("No pagination found. Defaulting to 1 page.")
     except Exception as e:
-        logging.warning(f"Pagination not found or error occurred ({e}). Defaulting to 1 page.")
-        return 1
+        logging.warning(f"Error determining max page: {e}. Defaulting to 1 page.")
+    return 1
 
 
-# Function to scrape paginated data
-def scrape_paginated_data(session: requests.Session, base_url: str, max_pages: int = 0) -> List[Dict[str, str]]:
-    page: int = 1
-    data: List[Dict[str, str]] = []
+def scrape_paginated_data(session: requests.Session, base_url: str, max_pages: Optional[int] = None) -> List[Dict[str, str]]:
+    """
+    Scrape data across paginated pages and return a list of extracted book details.
+    """
+    data = []
 
-    # https://httpbin.org/ has no data to scrap, so I am using books.toscrape.com
-    base_url = "https://books.toscrape.com"
-
-    # Determine max_pages dynamically if not provided
-    if max_pages == 0:
+    if max_pages is None:
         max_pages = get_max_page(session, base_url)
 
-    while page <= max_pages:  # Stop scraping after max_pages
+    for page in range(1, max_pages + 1):
         url = f"{base_url}/catalogue/page-{page}.html"
-        logging.info(f"Scraping page {page}...")
+        logging.info(f"Scraping page {page} of {max_pages}...")
 
         try:
-            response = fetch_page(session, url)  # This will retry if necessary
+            response = fetch_page(session, url)
+            page_data = extract_data_from_html(response.text)
+            data.extend(page_data)
         except RetryError:
             logging.error(f"Max retries reached for page {page}. Skipping...")
-            break
         except requests.exceptions.RequestException as e:
-            logging.error(f"Error fetching page {page} with exception {e}. Skipping...")
-            break
+            logging.error(f"Error fetching page {page}: {e}. Skipping...")
 
-        page_html = response.text  # Get the raw HTML content
-        if page_html:
-            page_data = extract_data_from_html(page_html)  # Parse and extract data
-            data.extend(page_data)
-
-        page += 1
-        time.sleep(random.randint(1, 3))  # Random sleep to mimic human-like behavior
+        time.sleep(random.uniform(1, 3))  # Randomized delay to mimic human behavior
 
     return data
 
 
-# Main function to execute the scraper
-def main() -> None:
+def save_data_to_file(data: List[Dict[str, str]], file_name: str) -> None:
+    """
+    Save the scraped data to a JSON file.
+    """
+    with open(file_name, 'w') as file:
+        json.dump(data, file, indent=4)
+    data_length = len(data) if isinstance(data, (list, dict)) else "N/A"
+    logging.info(f"Data successfully saved to '{file_name}'. Total items scraped: {data_length}.")
 
-    # Initialize the session management
+
+def main() -> None:
+    """
+    Main function to orchestrate the scraping process.
+    """
+    logging.info("Initializing the scraping session...")
+
+    # Initialize session management
     session_manager = SessionManagement(username=USERNAME, password=PASSWORD, login_url=LOGIN_URL)
     session = session_manager.get_session()
 
-    # Check if login was successful
     if not session_manager.is_login:
         logging.error("Login failed. Exiting...")
         return
 
-    # 2. Scrape paginated data
-    logging.info("Starting to scrape paginated data:")
+    # Start scraping
+    logging.info("Starting data scraping...")
     data = scrape_paginated_data(session, BASE_URL)
 
-    # 3. Save data to a JSON file
-    with open('scraped_data.json', 'w') as f:
-        json.dump(data, f, indent=4)
-    logging.info("Data saved successfully to 'scraped_data.json'.")
+    # Save the scraped data
+    save_data_to_file(data, 'scraped_data.json')
 
-    logging.info("Scraping completed.")
+    logging.info("Scraping process completed successfully.")
 
 
-# Entry point of the script
 if __name__ == "__main__":
     main()
