@@ -1,94 +1,108 @@
-# Selenium Scraper - README
 
-## Overview
-This Python script automates the process of logging into a website and scraping product data using Selenium WebDriver with undetected ChromeDriver. It is designed to scrape information from dynamic web pages, handle login with authentication, and save the scraped data into a JSON file. The scraper simulates human-like browsing behavior to avoid detection by the website.
+# Selenium Web Scraper
+
+This project is a web scraping utility using Selenium, undetected_chromedriver, and various proxy and user-agent configurations. The scraper logs into a website, navigates through paginated content, and extracts book data. The scraped data is then saved as a JSON file.
 
 ## Setup Instructions
 
-### 1. Install Dependencies
-To run this scraper, you'll need to install the necessary Python packages. You can do this using `pip`:
+### Prerequisites
+Ensure you have Python 3.8+ installed and have access to the following:
+- ChromeDriver compatible with your version of Google Chrome
+- Python packages listed below
+
+### Install Dependencies
+1. Clone the repository or download the script files.
+2. Install required Python libraries:
 
 ```bash
-pip install selenium undetected-chromedriver python-dotenv
+pip install -r requirements.txt
 ```
 
-Additionally, you need to download ChromeDriver that matches your version of Google Chrome. If you're using undetected-chromedriver, it will help bypass detection, but make sure you still have the correct version of ChromeDriver.
+### Configuration
 
-### 2. Setup Environment Variables
-Create a .env file in the same directory as the script and add the following environment variables:
+1. **Environment Variables**:
+   The following environment variables must be set in your `.env` file:
+   - `USER`: Your username for HTTP Basic Authentication.
+   - `PASSWORD`: Your password for HTTP Basic Authentication.
+   - `BASE_URL`: The base URL of the website to scrape.
+   - `CHROME_DRIVER_PATH`: The path to your ChromeDriver executable.
+   - `USER_AGENTS`: A list of user-agent strings separated by `;; `. Example:
+     ```text
+     Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36;; Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36
+     ```
+   - `PROXIES`: A comma-separated list of proxy addresses. Example:
+     ```text
+     http://proxy1.com:8080,http://proxy2.com:8080
+     ```
+
+2. **.env File Example**:
+   Create a `.env` file in your project directory with the following structure:
+
+   ```
+   USER=your_username
+   PASSWORD=your_password
+   BASE_URL=https://example.com
+   CHROME_DRIVER_PATH=/path/to/chromedriver
+   USER_AGENTS=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36;; Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36
+   PROXIES=http://proxy1.com:8080,http://proxy2.com:8080
+   ```
+
+## Key Selenium Settings
+
+### WebDriver Options
+
+1. **Headless Mode**:
+   The script runs the Chrome WebDriver in headless mode (`--headless`), meaning no GUI is displayed. This is ideal for running the scraper on servers without a graphical environment.
+
+2. **Incognito Mode**:
+   The WebDriver is set to run in incognito mode (`--incognito`), which prevents storing browsing history, cookies, or other session data.
+
+3. **Disable Automation Flags**:
+   The `--disable-blink-features=AutomationControlled` argument disables detection of automation (to bypass bot prevention mechanisms).
+
+4. **Proxy and User-Agent Rotation**:
+   The scraper randomly selects a proxy and user-agent for each session to help avoid IP bans or other blocking mechanisms.
+
+5. **Window Size**:
+   The default window size is set to 1920x1080 (`--window-size=1920,1080`).
+
+6. **Other Options**:
+   - `--disable-gpu`: Disables GPU hardware acceleration (useful in headless mode).
+   - `--disable-dev-shm-usage`: Disables the `/dev/shm` file system to avoid issues in Docker containers.
+   - `--disable-extensions`: Disables extensions to minimize performance overhead.
+   - `--disable-notifications`: Disables notifications that might interfere with the scraping.
+
+### Login Process
+The scraper uses HTTP Basic Authentication. The login URL is constructed by embedding the username and password into the URL string:
+```
+https://<username>:<password>@<base_url>
+```
+
+### Scraping Logic
+- The scraper iterates through pages of a catalogue (`page-{number}.html`).
+- It waits for the page content to load before extracting data from each book entry.
+- Data extracted includes the book title, price, and availability.
+- The scraper stops after scraping the specified number of pages or if three consecutive page load failures occur.
+
+### Saving the Data
+The scraped data is saved in a `scraped_data.json` file in JSON format. Each entry contains the book's name, price, and availability.
+
+## Running the Scraper
+
+To run the scraper, simply execute the `part2_scraper.py` script:
 
 ```bash
-USER=<your_username>
-PASSWORD=<your_password>
-BASE_URL=<url_of_the_website_to_scrape>
-CHROME_DRIVER_PATH=<path_to_your_chromedriver>
-```
-Example:
-
-```bash
-USER=my_username
-PASSWORD=my_password
-BASE_URL=https://example.com
-CHROME_DRIVER_PATH=/path/to/chromedriver
+python part2_scraper.py
 ```
 
-### 3. Configure Logging
-Logs will be written to a file called selenium_scraper.log. You can adjust the logging level or format in the script if needed. By default, it logs information, warnings, and errors.
+The scraper will:
+1. Initialize the WebDriver.
+2. Scrape up to 5 pages of books.
+3. Save the data in `scraped_data.json`.
 
-#### Key Selenium Settings
-1. Headless Mode
-The script runs Chrome in headless mode by default (no GUI), which is useful for running on servers or in CI environments.
+## Troubleshooting
+- **Timeout Issues**: If the scraper is timing out while loading pages, try adjusting the `max_pages` parameter or the `WebDriverWait` timeouts.
+- **Proxy Errors**: Ensure your proxies are working correctly, and you have enough proxies to rotate between requests.
 
-2. Incognito Mode
-To avoid storing browsing history, the script runs in incognito mode:
-
-3. Automation Flags
-To prevent detection as a bot, the script disables automation-related flags:
-
-4. Window Size
-The window size is set to 1920x1080 to simulate a typical desktop browser window:
-
-
-#### Configuration Options
-1. Max Pages to Scrape
-The scrape_data() function scrapes data from multiple pages. By default, it scrapes up to 5 pages:
-
-2. Page Delay
-The script waits for 1-3 seconds between page requests to mimic human-like behavior and avoid being flagged by the website:
-
-
-#### Functions
-1. setup_driver()
-This function initializes the Chrome WebDriver with stealth options to avoid detection. It handles setting up the ChromeDriver with appropriate arguments.
-
-2. login(driver, url, username, password)
-This function logs into the website using Basic Authentication. It formats the URL with the username and password and waits for the page to load.
-
-3. scrape_data(driver, base_url, max_pages=5)
-This function scrapes product data from multiple pages. It navigates through each page, waits for the page content to load, and extracts book details (title, price, availability) into a list. The data is stored in a JSON file.
-
-4. cleanup_driver(driver)
-This function ensures the WebDriver session is cleaned up properly after scraping. It quits the WebDriver and closes the browser window.
-
-#### Troubleshooting
-1. Common Errors
-- TimeoutException: The page failed to load within the allotted time. Check your internet connection and the website’s response time.
-- NoSuchElementException: An expected element wasn't found. Ensure the correct classes or tags are used for element selection.
-- WebDriverException: The WebDriver failed to start. Verify that your CHROME_DRIVER_PATH is correctly set and the ChromeDriver version is compatible with your installed Chrome version.
-
-2. Logs
-
-    The logs are saved in selenium_scraper.log. Check the log file for detailed information on any issues encountered during execution.
-
-#### Example Usage
-
-Once you've set up your environment variables and dependencies, you can run the scraper with:
-
-```bash
-python scraper.py
-```
-This will log into the website, scrape the data from the specified pages, and save the results into scraped_data.json.
-
-
-## Conclusion
-This scraper provides an automated way to gather product data from websites using Selenium with headless Chrome. By using stealth settings, it minimizes the risk of detection while scraping dynamic content. Be sure to respect the terms of service of the website you are scraping and use the scraper responsibly.
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
